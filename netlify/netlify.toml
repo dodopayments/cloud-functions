@@ -1,0 +1,9 @@
+[build]
+  functions = "functions"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[functions]
+  # Functions will be available at /.netlify/functions/[function-name]
+  directory = "functions"

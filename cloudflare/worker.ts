@@ -1,0 +1,237 @@
+import { Webhook } from 'standardwebhooks';
+
+interface Env {
+  DATABASE_URL: string;
+  DODO_PAYMENTS_WEBHOOK_KEY?: string;
+}
+
+interface WebhookPayload {
+  business_id: string;
+  type: string;
+  timestamp: string;
+  data: {
+    payload_type: "Subscription" | "Refund" | "Dispute" | "LicenseKey";
+    subscription_id?: string;
+    customer?: {
+      customer_id: string;
+      email: string;
+      name: string;
+    };
+    product_id?: string;
+    status?: string;
+    recurring_pre_tax_amount?: number;
+    payment_frequency_interval?: string;
+    next_billing_date?: string;
+    cancelled_at?: string;
+    currency?: string;
+  };
+}
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, webhook-id, webhook-signature, webhook-timestamp',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+
+// Initialize Neon SQL client (do this once at module level for better performance)
+let sqlClient: any = null;
+
+async function getSqlClient(env: Env) {
+  if (!sqlClient) {
+    const { neon } = await import('@neondatabase/serverless');
+    sqlClient = neon(env.DATABASE_URL);
+  }
+  return sqlClient;
+}
+
+async function handleSubscriptionEvent(env: Env, data: any, status: string) {
+  if (!data.customer?.customer_id || !data.subscription_id) {
+    throw new Error('Missing required fields: customer_id or subscription_id');
+  }
+
+  console.log('🔄 Processing subscription event:', JSON.stringify(data, null, 2));
+
+  const customer = data.customer;
+  const sql = await getSqlClient(env);
+
+  // Upsert customer (create if doesn't exist, otherwise use existing)
+  const customerResult = await sql`
+    INSERT INTO customers (email, name, dodo_customer_id, created_at)
+    VALUES (${customer.email}, ${customer.name || customer.email}, ${customer.customer_id}, ${new Date().toISOString()})
+    ON CONFLICT (dodo_customer_id) 
+    DO UPDATE SET 
+      email = EXCLUDED.email,
+      name = EXCLUDED.name,
+      updated_at = ${new Date().toISOString()}
+    RETURNING id
+  `;
+
+  const customerId = customerResult[0].id;
+  console.log(`✅ Customer upserted with ID: ${customerId}`);
+
+  // Upsert subscription
+  await sql`
+    INSERT INTO subscriptions (
+      customer_id, dodo_subscription_id, product_id, status, 
+      billing_interval, amount, currency, next_billing_date, cancelled_at, updated_at
+    )
+    VALUES (
+      ${customerId}, ${data.subscription_id},
+      ${data.product_id || 'unknown'}, ${status},
+      ${data.payment_frequency_interval?.toLowerCase() || 'month'}, ${data.recurring_pre_tax_amount || 0},
+      ${data.currency || 'USD'}, ${data.next_billing_date || null},
+      ${data.cancelled_at || null}, ${new Date().toISOString()}
+    )
+    ON CONFLICT (dodo_subscription_id) 
+    DO UPDATE SET 
+      status = EXCLUDED.status,
+      next_billing_date = EXCLUDED.next_billing_date,
+      cancelled_at = EXCLUDED.cancelled_at,
+      updated_at = EXCLUDED.updated_at
+  `;
+
+  console.log(`✅ Subscription upserted with ${status} status`)
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
+    }
+
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    try {
+      const rawBody = await request.text();
+      console.log('📨 Webhook received');
+
+      const sql = await getSqlClient(env);
+
+      // Verify webhook signature (required for security)
+      if (!env.DODO_PAYMENTS_WEBHOOK_KEY) {
+        console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
+        return new Response(
+          JSON.stringify({ error: 'Webhook verification key not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const webhookHeaders = {
+        'webhook-id': request.headers.get('webhook-id') || '',
+        'webhook-signature': request.headers.get('webhook-signature') || '',
+        'webhook-timestamp': request.headers.get('webhook-timestamp') || '',
+      };
+
+      try {
+        const wh = new Webhook(env.DODO_PAYMENTS_WEBHOOK_KEY);
+        await wh.verify(rawBody, webhookHeaders);
+        console.log('✅ Webhook signature verified');
+      } catch (error) {
+        console.error('❌ Webhook verification failed:', error);
+        return new Response(
+          JSON.stringify({ error: 'Webhook verification failed' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const payload: WebhookPayload = JSON.parse(rawBody);
+      const eventType = payload.type;
+      const eventData = payload.data;
+      const webhookId = request.headers.get('webhook-id') || '';
+
+      console.log(`📋 Webhook payload:`, JSON.stringify(payload, null, 2));
+
+      // Check for duplicate webhook-id (idempotency)
+      if (webhookId) {
+        const existingEvent = await sql`
+          SELECT id FROM webhook_events WHERE webhook_id = ${webhookId}
+        `;
+
+        if (existingEvent.length > 0) {
+          console.log(`⚠️ Webhook ${webhookId} already processed, skipping (idempotency)`);
+          return new Response(
+            JSON.stringify({ success: true, message: 'Webhook already processed' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Log webhook event with webhook_id for idempotency
+      const logResult = await sql`
+        INSERT INTO webhook_events (webhook_id, event_type, data, processed, created_at)
+        VALUES (${webhookId || null}, ${eventType}, ${JSON.stringify(eventData)}, ${false}, ${new Date().toISOString()})
+        RETURNING id
+      `;
+
+      const loggedEventId = logResult[0].id;
+      console.log('📝 Webhook event logged with ID:', loggedEventId);
+
+      console.log(`🔄 Processing: ${eventType} (${eventData.payload_type || 'unknown payload type'})`);
+
+      try {
+        switch (eventType) {
+          case 'subscription.active':
+            await handleSubscriptionEvent(env, eventData, 'active');
+            break;
+          case 'subscription.cancelled':
+            await handleSubscriptionEvent(env, eventData, 'cancelled');
+            break;
+          case 'subscription.renewed':
+            console.log('🔄 Subscription renewed - keeping active status and updating billing date');
+            await handleSubscriptionEvent(env, eventData, 'active');
+            break;
+          default:
+            console.log(`ℹ️ Event ${eventType} logged but not processed (no handler available)`);
+        }
+
+        await sql`
+          UPDATE webhook_events 
+          SET processed = ${true}, processed_at = ${new Date().toISOString()}
+          WHERE id = ${loggedEventId}
+        `;
+
+        console.log('✅ Webhook marked as processed');
+      } catch (processingError) {
+        console.error('❌ Error processing webhook event:', processingError);
+
+        await sql`
+          UPDATE webhook_events 
+          SET processed = ${false}, 
+              error_message = ${processingError instanceof Error ? processingError.message : 'Unknown error'},
+              processed_at = ${new Date().toISOString()}
+          WHERE id = ${loggedEventId}
+        `;
+
+        throw processingError;
+      }
+
+      console.log('✅ Webhook processed successfully');
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          event_type: eventType,
+          event_id: loggedEventId
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
+    } catch (error) {
+      console.error('❌ Webhook processing failed:', error);
+      return new Response(
+        JSON.stringify({
+          error: 'Webhook processing failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+};

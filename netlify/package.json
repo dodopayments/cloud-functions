@@ -1,0 +1,20 @@
+{
+  "name": "dodo-webhook-netlify",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DodoPayments Webhook Handler for Netlify",
+  "scripts": {
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "standardwebhooks": "^1.0.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^5.0.0",
+    "netlify-cli": "^23.9.1",
+    "typescript": "^5.9.3"
+  }
+}
+
