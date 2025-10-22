@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { Webhook } from 'standardwebhooks';
 
@@ -37,7 +36,15 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Helper functions for json responses
+function jsonResponse(data: any, status: number = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
 
+// Handle subscription events
 async function handleSubscriptionEvent(sql: any, data: any, status: string) {
   if (!data.customer?.customer_id || !data.subscription_id) {
     throw new Error('Missing required fields: customer_id or subscription_id');
@@ -86,23 +93,20 @@ async function handleSubscriptionEvent(sql: any, data: any, status: string) {
   console.log(`✅ Subscription upserted with ${status} status`)
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).setHeader('Access-Control-Allow-Origin', '*')
-      .setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers'])
-      .setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods'])
-      .end();
-  }
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new Response('ok', { 
+    status: 200,
+    headers: corsHeaders 
+  });
+}
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+// Handle webhook POST request
+export async function POST(req: Request) {
   try {
     // Get raw body for webhook signature verification
-    // When bodyParser is disabled, req.body contains the raw string
-    const rawBody = req.body as string;
+    const rawBody = await req.text();
+    
     console.log('📨 Webhook received');
 
     const DATABASE_URL = process.env.DATABASE_URL;
@@ -110,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!DATABASE_URL) {
       console.error('❌ Missing DATABASE_URL environment variable');
-      return res.status(500).json({ error: 'Server configuration error' });
+      return jsonResponse({ error: 'Server configuration error' }, 500);
     }
 
     // Initialize Neon client
@@ -119,13 +123,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify webhook signature (required for security)
     if (!WEBHOOK_KEY) {
       console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
-      return res.status(500).json({ error: 'Webhook verification key not configured' });
+      return jsonResponse({ error: 'Webhook verification key not configured' }, 500);
     }
 
     const webhookHeaders = {
-      'webhook-id': req.headers['webhook-id'] as string || '',
-      'webhook-signature': req.headers['webhook-signature'] as string || '',
-      'webhook-timestamp': req.headers['webhook-timestamp'] as string || '',
+      'webhook-id': req.headers.get('webhook-id') || '',
+      'webhook-signature': req.headers.get('webhook-signature') || '',
+      'webhook-timestamp': req.headers.get('webhook-timestamp') || '',
     };
 
     try {
@@ -134,13 +138,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('✅ Webhook signature verified');
     } catch (error) {
       console.error('❌ Webhook verification failed:', error);
-      return res.status(401).json({ error: 'Webhook verification failed' });
+      return jsonResponse({ error: 'Webhook verification failed' }, 401);
     }
 
     const payload: WebhookPayload = JSON.parse(rawBody);
     const eventType = payload.type;
     const eventData = payload.data;
-    const webhookId = req.headers['webhook-id'] as string || '';
+    const webhookId = req.headers.get('webhook-id') || '';
 
     console.log(`📋 Webhook payload:`, JSON.stringify(payload, null, 2));
 
@@ -152,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (existingEvent.length > 0) {
         console.log(`⚠️ Webhook ${webhookId} already processed, skipping (idempotency)`);
-        return res.status(200).json({ success: true, message: 'Webhook already processed' });
+        return jsonResponse({ success: true, message: 'Webhook already processed' });
       }
     }
 
@@ -207,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('✅ Webhook processed successfully');
 
-    return res.status(200).json({
+    return jsonResponse({
       success: true,
       event_type: eventType,
       event_id: loggedEventId
@@ -215,9 +219,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error) {
     console.error('❌ Webhook processing failed:', error);
-    return res.status(500).json({
+    return jsonResponse({
       error: 'Webhook processing failed',
       details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    }, 500);
   }
 }
