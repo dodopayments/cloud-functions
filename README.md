@@ -1,8 +1,9 @@
-# DodoPayments Cloud Functions
+# Dodo Payments Cloud Functions
+<a href="https://discord.gg/bYqAp4ayYh">
+    <img src="https://img.shields.io/discord/1305511580854779984?label=Join%20Discord&logo=discord" alt="Join Discord" />
+  </a>
 
-Production-ready webhook handlers for [DodoPayments](https://dodopayments.com) across multiple serverless platforms.
-
-
+Production-ready webhook handlers for [Dodo Payments](https://dodopayments.com) across multiple serverless platforms.
 
 ## 🚀 Choose Your Platform
 
@@ -76,13 +77,13 @@ All implementations require PostgreSQL tables. Create them using your database p
 6. Run the query
 
 The schema creates three tables:
-- **`customers`** - Customer information from DodoPayments
+- **`customers`** - Customer information from Dodo Payments
 - **`subscriptions`** - Subscription data and status
 - **`webhook_events`** - Complete webhook event log for audit and retry purposes
 
 ## 🔔 Webhook Events Handled
 
-All implementations process these DodoPayments events:
+All implementations process these Dodo Payments events:
 
 | Event | Description |
 |-------|-------------|
