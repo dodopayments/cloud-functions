@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
-import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0';
+import { DodoPayments } from 'https://esm.sh/dodopayments@2.4.1';
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +55,17 @@ serve(async (req: Request) => {
     console.log('📨 Webhook received');
 
     // Verify webhook signature (required for security)
+    const apiKey = Deno.env.get('DODO_PAYMENTS_API_KEY');
     const webhookKey = Deno.env.get('DODO_PAYMENTS_WEBHOOK_KEY');
+
+    if (!apiKey) {
+      console.error('❌ DODO_PAYMENTS_API_KEY is not configured');
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!webhookKey) {
       console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
       return new Response(
@@ -71,8 +81,12 @@ serve(async (req: Request) => {
     };
 
     try {
-      const wh = new Webhook(webhookKey);
-      await wh.verify(rawBody, webhookHeaders);
+      const dodoPaymentsClient = new DodoPayments({
+        bearerToken: apiKey,
+        webhookKey: webhookKey,
+      });
+      const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, {headers: webhookHeaders});
+      console.log('Unwrapped webhook:', unwrappedWebhook);
       console.log('✅ Webhook signature verified');
     } catch (error) {
       console.error('❌ Webhook verification failed:', error);

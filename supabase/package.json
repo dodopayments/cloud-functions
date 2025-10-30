@@ -4,6 +4,7 @@
   "type": "module",
   "description": "DodoPayments Webhook Handler for Supabase Edge Functions",
   "scripts": {
+    "dev": "npx supabase functions serve webhook --no-verify-jwt --workdir ..",
     "deploy": "npx supabase functions deploy webhook --no-verify-jwt --workdir .."
   }
 }

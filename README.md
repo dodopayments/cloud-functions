@@ -94,9 +94,9 @@ All implementations process these DodoPayments events:
 
 ### Webhook Signature Verification
 
-All implementations use the **[standardwebhooks](https://github.com/standard-webhooks/standard-webhooks)** library for secure, battle-tested webhook verification.
+All implementations use the **[dodopayments](https://www.npmjs.com/package/dodopayments)** library for secure webhook verification.
 
-**⚠️ Important:** The `DODO_PAYMENTS_WEBHOOK_KEY` is **required**. All webhook requests will be rejected with a 500 error if the key is not configured. This ensures secure-by-default operation.
+**⚠️ Important:** Both `DODO_PAYMENTS_API_KEY` and `DODO_PAYMENTS_WEBHOOK_KEY` are **required**.
 
 ### Best Practices
 

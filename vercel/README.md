@@ -4,11 +4,10 @@ Deploy DodoPayments webhooks to Vercel's serverless platform.
 
 ## Features
 
-- 🚀 **Fast deployment** - Deploy via Git or CLI
-- 🔧 **Simple configuration** - Minimal setup required
-- 💾 **Serverless PostgreSQL** - Via Neon database
-- 🔒 **Webhook verification** - Built-in signature checking
-- 📊 **Event logging** - Complete audit trail
+- 🔒 **Webhook verification** - Secure signature checking using DodoPayments library
+- 🔄 **Idempotency** - Prevents duplicate processing with webhook IDs
+- 📊 **Event logging** - Complete audit trail in database
+- ⚠️ **Error handling** - Logged failures with retry support
 
 ## Prerequisites
 
@@ -54,6 +53,7 @@ npm install
 Via Vercel CLI:
 ```bash
 vercel env add DATABASE_URL
+vercel env add DODO_PAYMENTS_API_KEY
 vercel env add DODO_PAYMENTS_WEBHOOK_KEY
 ```
 
@@ -78,6 +78,7 @@ Your webhook will be available at `http://localhost:3000/api/webhook`
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | Neon PostgreSQL connection string |
+| `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
 ## Deployment URL
@@ -91,7 +92,7 @@ Configure this URL in your DodoPayments dashboard.
 
 ## Security
 
-This implementation uses the **[standardwebhooks](https://github.com/standard-webhooks/standard-webhooks)** library for battle-tested webhook signature verification.
+This implementation uses the **[dodopayments](https://www.npmjs.com/package/dodopayments)** library for secure webhook signature verification.
 
 **Features:**
 - ✅ HMAC-SHA256 signature verification
@@ -99,7 +100,7 @@ This implementation uses the **[standardwebhooks](https://github.com/standard-we
 - ✅ Replay attack prevention
 - ✅ Constant-time comparison
 
-**Important:** Always set `DODO_PAYMENTS_WEBHOOK_KEY` in production.
+**Important:** Always set both `DODO_PAYMENTS_API_KEY` and `DODO_PAYMENTS_WEBHOOK_KEY` in production.
 
 ## Documentation
 
