@@ -4,11 +4,10 @@ Deploy DodoPayments webhooks to Supabase Edge Functions with Deno runtime.
 
 ## Features
 
-- 🦕 **Modern Deno runtime** - TypeScript-first
-- 🔐 **Integrated auth** - Works with Supabase Auth
-- 💾 **Built-in database** - Direct Supabase PostgreSQL access
-- 🔒 **Webhook verification** - Built-in signature checking
-- 📊 **Event logging** - Complete audit trail
+- 🔒 **Webhook verification** - Secure signature checking using DodoPayments library
+- 🔄 **Idempotency** - Prevents duplicate processing with webhook IDs
+- 📊 **Event logging** - Complete audit trail in database
+- ⚠️ **Error handling** - Logged failures with retry support
 
 ## Prerequisites
 
@@ -52,9 +51,10 @@ Your webhook handler will then be ready to receive events!
 
 Supabase automatically provides `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` at runtime.
 
-Set your webhook key:
+Set your API key and webhook key:
 
 ```bash
+npx supabase secrets set DODO_PAYMENTS_API_KEY=your-api-key
 npx supabase secrets set DODO_PAYMENTS_WEBHOOK_KEY=your-webhook-key
 ```
 
@@ -72,6 +72,7 @@ npm run deploy
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | Your Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key for database access |
+| `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
 ## Deployment URL
@@ -83,9 +84,20 @@ https://[project-ref].supabase.co/functions/v1/webhook
 
 Configure this URL in your DodoPayments dashboard.
 
+## Security
+
+This implementation uses the **[dodopayments](https://www.npmjs.com/package/dodopayments)** library for secure webhook signature verification.
+
+**Features:**
+- ✅ HMAC-SHA256 signature verification
+- ✅ Automatic timestamp validation (5-minute tolerance)
+- ✅ Replay attack prevention
+- ✅ Constant-time comparison
+
+**Important:** Always set both `DODO_PAYMENTS_API_KEY` and `DODO_PAYMENTS_WEBHOOK_KEY` in production.
+
 ## Documentation
 
 - [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
 - [Supabase CLI](https://supabase.com/docs/reference/cli)
 - [DodoPayments Docs](https://docs.dodopayments.com)
-

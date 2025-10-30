@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { Webhook } from 'standardwebhooks';
+import { DodoPayments } from 'dodopayments';
 
 interface WebhookPayload {
   business_id: string;
@@ -110,6 +110,7 @@ export async function POST(req: Request) {
     console.log('📨 Webhook received');
 
     const DATABASE_URL = process.env.DATABASE_URL;
+    const API_KEY = process.env.DODO_PAYMENTS_API_KEY;
     const WEBHOOK_KEY = process.env.DODO_PAYMENTS_WEBHOOK_KEY;
 
     if (!DATABASE_URL) {
@@ -119,6 +120,12 @@ export async function POST(req: Request) {
 
     // Initialize Neon client
     const sql = neon(DATABASE_URL);
+
+    // Verify required environment variables
+    if (!API_KEY) {
+      console.error('❌ DODO_PAYMENTS_API_KEY is not configured');
+      return jsonResponse({ error: 'API key not configured' }, 500);
+    }
 
     // Verify webhook signature (required for security)
     if (!WEBHOOK_KEY) {
@@ -133,8 +140,12 @@ export async function POST(req: Request) {
     };
 
     try {
-      const wh = new Webhook(WEBHOOK_KEY);
-      await wh.verify(rawBody, webhookHeaders);
+        const dodoPaymentsClient = new DodoPayments({
+          bearerToken: API_KEY,
+          webhookKey: WEBHOOK_KEY,
+        });
+      const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, {headers: webhookHeaders});
+      console.log('Unwrapped webhook:', unwrappedWebhook);
       console.log('✅ Webhook signature verified');
     } catch (error) {
       console.error('❌ Webhook verification failed:', error);

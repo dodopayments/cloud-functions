@@ -1,8 +1,9 @@
-import { Webhook } from 'standardwebhooks';
+import { DodoPayments } from 'dodopayments';
 
 interface Env {
   DATABASE_URL: string;
-  DODO_PAYMENTS_WEBHOOK_KEY?: string;
+  DODO_PAYMENTS_API_KEY: string;
+  DODO_PAYMENTS_WEBHOOK_KEY: string;
 }
 
 interface WebhookPayload {
@@ -32,7 +33,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, webhook-id, webhook-signature, webhook-timestamp',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
 
 // Initialize Neon SQL client (do this once at module level for better performance)
 let sqlClient: any = null;
@@ -114,6 +114,15 @@ export default {
 
       const sql = await getSqlClient(env);
 
+      // Verify required environment variables
+      if (!env.DODO_PAYMENTS_API_KEY) {
+        console.error('❌ DODO_PAYMENTS_API_KEY is not configured');
+        return new Response(
+          JSON.stringify({ error: 'API key not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Verify webhook signature (required for security)
       if (!env.DODO_PAYMENTS_WEBHOOK_KEY) {
         console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
@@ -130,8 +139,12 @@ export default {
       };
 
       try {
-        const wh = new Webhook(env.DODO_PAYMENTS_WEBHOOK_KEY);
-        await wh.verify(rawBody, webhookHeaders);
+        const dodoPaymentsClient = new DodoPayments({
+          bearerToken: env.DODO_PAYMENTS_API_KEY,
+          webhookKey: env.DODO_PAYMENTS_WEBHOOK_KEY,
+        });
+        const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, {headers: webhookHeaders});
+        console.log('Unwrapped webhook:', unwrappedWebhook);
         console.log('✅ Webhook signature verified');
       } catch (error) {
         console.error('❌ Webhook verification failed:', error);
