@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "dodopayments": "^2.4.0"
+    "dodopayments": "^2.4.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

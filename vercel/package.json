@@ -4,7 +4,7 @@
   "type": "module",
   "description": "DodoPayments Webhook Handler for Vercel",
   "scripts": {
-    "dev": "vercel dev",
+    "start": "vercel dev",
     "deploy": "vercel --prod"
   },
   "dependencies": {
