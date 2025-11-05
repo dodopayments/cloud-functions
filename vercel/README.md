@@ -71,8 +71,6 @@ npm run deploy
 npm start
 ```
 
-> **Note:** Vercel uses `npm start` instead of `npm run dev` to avoid recursive invocation issues.
-
 Your webhook will be available at `http://localhost:3000/api/webhook`
 
 ## Environment Variables
