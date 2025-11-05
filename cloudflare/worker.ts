@@ -1,4 +1,5 @@
 import { DodoPayments } from 'dodopayments';
+import { neon, NeonQueryFunction } from '@neondatabase/serverless';
 
 interface Env {
   DATABASE_URL: string;
@@ -13,7 +14,7 @@ interface WebhookPayload {
   data: {
     payload_type: "Subscription" | "Refund" | "Dispute" | "LicenseKey";
     subscription_id?: string;
-    customer?: {
+    customer: {
       customer_id: string;
       email: string;
       name: string;
@@ -34,26 +35,14 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Initialize Neon SQL client (do this once at module level for better performance)
-let sqlClient: any = null;
-
-async function getSqlClient(env: Env) {
-  if (!sqlClient) {
-    const { neon } = await import('@neondatabase/serverless');
-    sqlClient = neon(env.DATABASE_URL);
-  }
-  return sqlClient;
-}
-
-async function handleSubscriptionEvent(env: Env, data: any, status: string) {
-  if (!data.customer?.customer_id || !data.subscription_id) {
+async function handleSubscriptionEvent(sql: NeonQueryFunction<false, false>, payload: WebhookPayload, status: string) {
+  if (!payload.data.customer.customer_id || !payload.data.subscription_id) {
     throw new Error('Missing required fields: customer_id or subscription_id');
   }
 
-  console.log('🔄 Processing subscription event:', JSON.stringify(data, null, 2));
+  console.log('🔄 Processing subscription event:', JSON.stringify(payload, null, 2));
 
-  const customer = data.customer;
-  const sql = await getSqlClient(env);
+  const customer = payload.data.customer;
 
   // Upsert customer (create if doesn't exist, otherwise use existing)
   const customerResult = await sql`
@@ -77,15 +66,20 @@ async function handleSubscriptionEvent(env: Env, data: any, status: string) {
       billing_interval, amount, currency, next_billing_date, cancelled_at, updated_at
     )
     VALUES (
-      ${customerId}, ${data.subscription_id},
-      ${data.product_id || 'unknown'}, ${status},
-      ${data.payment_frequency_interval?.toLowerCase() || 'month'}, ${data.recurring_pre_tax_amount || 0},
-      ${data.currency || 'USD'}, ${data.next_billing_date || null},
-      ${data.cancelled_at || null}, ${new Date().toISOString()}
+      ${customerId}, ${payload.data.subscription_id},
+      ${payload.data.product_id || 'unknown'}, ${status},
+      ${payload.data.payment_frequency_interval?.toLowerCase() || 'month'}, ${payload.data.recurring_pre_tax_amount || 0},
+      ${payload.data.currency || 'USD'}, ${payload.data.next_billing_date || null},
+      ${payload.data.cancelled_at || null}, ${new Date().toISOString()}
     )
     ON CONFLICT (dodo_subscription_id) 
     DO UPDATE SET 
+      customer_id = EXCLUDED.customer_id,
+      product_id = EXCLUDED.product_id,
       status = EXCLUDED.status,
+      billing_interval = EXCLUDED.billing_interval,
+      amount = EXCLUDED.amount,
+      currency = EXCLUDED.currency,
       next_billing_date = EXCLUDED.next_billing_date,
       cancelled_at = EXCLUDED.cancelled_at,
       updated_at = EXCLUDED.updated_at
@@ -112,8 +106,6 @@ export default {
       const rawBody = await request.text();
       console.log('📨 Webhook received');
 
-      const sql = await getSqlClient(env);
-
       // Verify required environment variables
       if (!env.DODO_PAYMENTS_API_KEY) {
         console.error('❌ DODO_PAYMENTS_API_KEY is not configured');
@@ -128,6 +120,14 @@ export default {
         console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
         return new Response(
           JSON.stringify({ error: 'Webhook verification key not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!env.DATABASE_URL) {
+        console.error('❌ DATABASE_URL is not configured');
+        return new Response(
+          JSON.stringify({ error: 'Database URL not configured' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -153,6 +153,9 @@ export default {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Initialize Neon client
+      const sql = neon(env.DATABASE_URL);
 
       const payload: WebhookPayload = JSON.parse(rawBody);
       const eventType = payload.type;
@@ -191,14 +194,14 @@ export default {
       try {
         switch (eventType) {
           case 'subscription.active':
-            await handleSubscriptionEvent(env, eventData, 'active');
+            await handleSubscriptionEvent(sql, payload, 'active');
             break;
           case 'subscription.cancelled':
-            await handleSubscriptionEvent(env, eventData, 'cancelled');
+            await handleSubscriptionEvent(sql, payload, 'cancelled');
             break;
           case 'subscription.renewed':
             console.log('🔄 Subscription renewed - keeping active status and updating billing date');
-            await handleSubscriptionEvent(env, eventData, 'active');
+            await handleSubscriptionEvent(sql, payload, 'active');
             break;
           default:
             console.log(`ℹ️ Event ${eventType} logged but not processed (no handler available)`);

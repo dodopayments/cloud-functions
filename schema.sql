@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS customers (
 -- Subscriptions table
 CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
+  customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   dodo_subscription_id TEXT UNIQUE NOT NULL,
   product_id TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'cancelled', 'expired', 'paused')),
@@ -83,7 +83,3 @@ COMMENT ON COLUMN customers.dodo_customer_id IS 'Unique customer ID from DodoPay
 COMMENT ON COLUMN subscriptions.dodo_subscription_id IS 'Unique subscription ID from DodoPayments';
 COMMENT ON COLUMN webhook_events.attempts IS 'Number of processing attempts for failed webhooks';
 COMMENT ON COLUMN webhook_events.data IS 'Full webhook payload as JSON';
-
--- Sample queries for monitoring
-COMMENT ON TABLE webhook_events IS 'Query unprocessed events: SELECT * FROM webhook_events WHERE processed = false ORDER BY created_at DESC;';
-COMMENT ON TABLE subscriptions IS 'Query active subscriptions: SELECT s.*, c.email FROM subscriptions s JOIN customers c ON s.customer_id = c.id WHERE s.status = ''active'';';

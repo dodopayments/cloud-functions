@@ -68,7 +68,7 @@ npm run deploy
 ## Local Development
 
 ```bash
-npm run dev
+npm start
 ```
 
 Your webhook will be available at `http://localhost:3000/api/webhook`

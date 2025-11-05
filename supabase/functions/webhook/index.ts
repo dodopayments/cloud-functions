@@ -15,7 +15,7 @@ interface WebhookPayload {
   data: {
     payload_type: "Subscription" | "Refund" | "Dispute" | "LicenseKey";
     subscription_id?: string;
-    customer?: {
+    customer: {
       customer_id: string;
       email: string;
       name: string;
@@ -30,6 +30,72 @@ interface WebhookPayload {
   };
 }
 
+// Handle subscription events
+async function handleSubscriptionEvent(supabase: SupabaseClient, payload: WebhookPayload, status: string) {
+  if (!payload.data.customer.customer_id || !payload.data.subscription_id) {
+    throw new Error('Missing required fields: customer_id or subscription_id');
+  }
+
+  try {
+    console.log('🔄 Processing subscription event:', JSON.stringify(payload, null, 2));
+    
+    const customer = payload.data.customer;
+    
+    // Upsert customer (create if doesn't exist, otherwise update)
+    const customerResult = await supabase
+      .from('customers')
+      .upsert({
+        email: customer.email,
+        name: customer.name || customer.email,
+        dodo_customer_id: customer.customer_id
+      }, {
+        onConflict: 'dodo_customer_id',
+        ignoreDuplicates: false
+      })
+      .select('id')
+      .single();
+
+    if (customerResult.error) {
+      console.error('❌ Failed to upsert customer:', customerResult.error);
+      throw new Error(`Failed to upsert customer: ${customerResult.error.message}`);
+    }
+
+    const customerId = customerResult.data.id;
+    console.log(`✅ Customer upserted with ID: ${customerId}`);
+
+    // Upsert subscription
+    const subscriptionResult = await supabase
+      .from('subscriptions')
+      .upsert({
+        customer_id: customerId,
+        dodo_subscription_id: payload.data.subscription_id,
+        product_id: payload.data.product_id || 'unknown',
+        status,
+        billing_interval: payload.data.payment_frequency_interval?.toLowerCase() || 'month',
+        amount: payload.data.recurring_pre_tax_amount || 0,
+        currency: payload.data.currency || 'USD',
+        next_billing_date: payload.data.next_billing_date || null,
+        cancelled_at: payload.data.cancelled_at || null,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'dodo_subscription_id',
+        ignoreDuplicates: false
+      })
+      .select();
+
+    if (subscriptionResult.error) {
+      console.error('❌ Failed to upsert subscription:', subscriptionResult.error);
+      throw new Error(`Failed to upsert subscription: ${subscriptionResult.error.message}`);
+    }
+
+    console.log(`✅ Subscription upserted with ${status} status`);
+
+  } catch (error) {
+    console.error('❌ Error in handleSubscriptionEvent:', error);
+    console.error('❌ Raw webhook data:', JSON.stringify(payload, null, 2));
+    throw error;
+  }
+}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -48,8 +114,6 @@ serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const rawBody = await req.text();
     console.log('📨 Webhook received');
@@ -98,6 +162,9 @@ serve(async (req: Request) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Initialize Supabase client
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let payload: WebhookPayload;
     try {
@@ -158,14 +225,14 @@ serve(async (req: Request) => {
     try {
       switch (eventType) {
         case 'subscription.active':
-          await handleSubscriptionEvent(supabase, eventData, 'active');
+          await handleSubscriptionEvent(supabase, payload, 'active');
           break;
         case 'subscription.cancelled':
-          await handleSubscriptionEvent(supabase, eventData, 'cancelled');
+          await handleSubscriptionEvent(supabase, payload, 'cancelled');
           break;
         case 'subscription.renewed':
           console.log('🔄 Subscription renewed - keeping active status and updating billing date');
-          await handleSubscriptionEvent(supabase, eventData, 'active');
+          await handleSubscriptionEvent(supabase, payload, 'active');
           break;
         default:
           console.log(`ℹ️ Event ${eventType} logged but not processed (no handler available)`);
@@ -221,71 +288,3 @@ serve(async (req: Request) => {
     );
   }
 });
-
-async function handleSubscriptionEvent(supabase: SupabaseClient, data: any, status: string) {
-  if (!data.customer?.customer_id || !data.subscription_id) {
-    throw new Error('Missing required fields: customer_id or subscription_id');
-  }
-
-  try {
-    console.log('🔄 Processing subscription event:', JSON.stringify(data, null, 2));
-    
-    const customer = data.customer;
-    
-    // Upsert customer (create if doesn't exist, otherwise update)
-    const customerResult = await supabase
-      .from('customers')
-      .upsert({
-        email: customer.email,
-        name: customer.name || customer.email,
-        dodo_customer_id: customer.customer_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'dodo_customer_id',
-        ignoreDuplicates: false
-      })
-      .select('id')
-      .single();
-
-    if (customerResult.error) {
-      console.error('❌ Failed to upsert customer:', customerResult.error);
-      throw new Error(`Failed to upsert customer: ${customerResult.error.message}`);
-    }
-
-    const customerId = customerResult.data.id;
-    console.log(`✅ Customer upserted with ID: ${customerId}`);
-
-    // Upsert subscription
-    const subscriptionResult = await supabase
-      .from('subscriptions')
-      .upsert({
-        customer_id: customerId,
-        dodo_subscription_id: data.subscription_id,
-        product_id: data.product_id || 'unknown',
-        status,
-        billing_interval: data.payment_frequency_interval?.toLowerCase() || 'month',
-        amount: data.recurring_pre_tax_amount || 0,
-        currency: data.currency || 'USD',
-        next_billing_date: data.next_billing_date || null,
-        cancelled_at: data.cancelled_at || null,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'dodo_subscription_id',
-        ignoreDuplicates: false
-      })
-      .select();
-
-    if (subscriptionResult.error) {
-      console.error('❌ Failed to upsert subscription:', subscriptionResult.error);
-      throw new Error(`Failed to upsert subscription: ${subscriptionResult.error.message}`);
-    }
-
-    console.log(`✅ Subscription upserted with ${status} status`);
-
-  } catch (error) {
-    console.error('❌ Error in handleSubscriptionEvent:', error);
-    console.error('❌ Raw webhook data:', JSON.stringify(data, null, 2));
-    throw error;
-  }
-}
