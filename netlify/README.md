@@ -9,6 +9,8 @@ Deploy DodoPayments webhooks to Netlify Functions.
 - 📊 **Event logging** - Complete audit trail in database
 - ⚠️ **Error handling** - Logged failures with retry support
 
+> **Note:** This implementation demonstrates handling three core subscription events (`subscription.active`, `subscription.cancelled`, `subscription.renewed`) with minimal fields. You can easily extend it to support additional event types and fields based on your requirements.
+
 ## Prerequisites
 
 ### 1. Install Netlify CLI (one-time)
@@ -27,10 +29,10 @@ This will open your browser to authenticate with your Netlify account.
 
 ### 3. Database Setup
 
-You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for serverless PostgreSQL.
+You'll need a PostgreSQL database. We recommend [Neon](https://neon.com) for serverless PostgreSQL.
 
 **Create the tables:**
-1. Sign up for [Neon](https://neon.tech)
+1. Sign up for [Neon](https://neon.com)
 2. Create a new project
 3. Open the SQL Editor
 4. Copy and paste the contents of [`schema.sql`](../schema.sql)
@@ -48,16 +50,14 @@ You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for se
 npm install
 ```
 
-### 2. Set Environment Variables
+### 2. Set Initial Environment Variables
 
-Via Netlify CLI:
 ```bash
 netlify env:set DATABASE_URL "your-neon-connection-string"
 netlify env:set DODO_PAYMENTS_API_KEY "your-api-key"
-netlify env:set DODO_PAYMENTS_WEBHOOK_KEY "your-webhook-key"
 ```
 
-Or via [Netlify Dashboard](https://app.netlify.com) → Site Settings → Environment Variables
+> **Note:** We'll set `DODO_PAYMENTS_WEBHOOK_KEY` after deployment once you have your webhook URL.
 
 ### 3. Initialize Site (first deployment only)
 
@@ -68,6 +68,31 @@ netlify init
 ### 4. Deploy
 
 ```bash
+npm run deploy
+```
+
+### 5. Get Your Webhook URL
+
+Your webhook URL is:
+```
+https://[your-project].netlify.app/.netlify/functions/webhook
+```
+
+### 6. Register Webhook in DodoPayments Dashboard
+
+1. Go to [DodoPayments Dashboard](https://app.dodopayments.com) → Developer → Webhooks
+2. Create a new webhook endpoint
+3. Configure your webhook URL as the endpoint
+4. Enable these subscription events:
+   - `subscription.active`
+   - `subscription.cancelled`
+   - `subscription.renewed`
+5. Copy the **Signing Secret**
+
+### 7. Set Webhook Key & Redeploy
+
+```bash
+netlify env:set DODO_PAYMENTS_WEBHOOK_KEY "your-webhook-signing-key"
 npm run deploy
 ```
 
@@ -87,11 +112,11 @@ Your webhook will be available at `http://localhost:8888/.netlify/functions/webh
 | `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
-## Deployment URL
+## Webhook URL
 
-After deployment, your webhook will be at:
+After deployment, your webhook URL will be at:
 ```
-https://[your-site].netlify.app/.netlify/functions/webhook
+https://[your-site-name].netlify.app/.netlify/functions/webhook
 ```
 
 Configure this URL in your DodoPayments dashboard.

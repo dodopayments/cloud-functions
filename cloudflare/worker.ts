@@ -12,20 +12,21 @@ interface WebhookPayload {
   type: string;
   timestamp: string;
   data: {
-    payload_type: "Subscription" | "Refund" | "Dispute" | "LicenseKey";
-    subscription_id?: string;
+    payload_type: "Payment" | "Subscription" | "Refund" | "Dispute" | "LicenseKey";
+    subscription_id: string;
     customer: {
       customer_id: string;
       email: string;
       name: string;
     };
-    product_id?: string;
-    status?: string;
-    recurring_pre_tax_amount?: number;
-    payment_frequency_interval?: string;
-    next_billing_date?: string;
-    cancelled_at?: string;
-    currency?: string;
+    product_id: string;
+    status: string;
+    recurring_pre_tax_amount: number;
+    payment_frequency_interval: string;
+    created_at: string;
+    next_billing_date: string;
+    cancelled_at?: string | null;
+    currency: string;
   };
 }
 
@@ -47,7 +48,7 @@ async function handleSubscriptionEvent(sql: NeonQueryFunction<false, false>, pay
   // Upsert customer (create if doesn't exist, otherwise use existing)
   const customerResult = await sql`
     INSERT INTO customers (email, name, dodo_customer_id, created_at)
-    VALUES (${customer.email}, ${customer.name || customer.email}, ${customer.customer_id}, ${new Date().toISOString()})
+    VALUES (${customer.email}, ${customer.name}, ${customer.customer_id}, ${new Date().toISOString()})
     ON CONFLICT (dodo_customer_id) 
     DO UPDATE SET 
       email = EXCLUDED.email,
@@ -63,14 +64,14 @@ async function handleSubscriptionEvent(sql: NeonQueryFunction<false, false>, pay
   await sql`
     INSERT INTO subscriptions (
       customer_id, dodo_subscription_id, product_id, status, 
-      billing_interval, amount, currency, next_billing_date, cancelled_at, updated_at
+      billing_interval, amount, currency, created_at, next_billing_date, cancelled_at, updated_at
     )
     VALUES (
       ${customerId}, ${payload.data.subscription_id},
-      ${payload.data.product_id || 'unknown'}, ${status},
-      ${payload.data.payment_frequency_interval?.toLowerCase() || 'month'}, ${payload.data.recurring_pre_tax_amount || 0},
-      ${payload.data.currency || 'USD'}, ${payload.data.next_billing_date || null},
-      ${payload.data.cancelled_at || null}, ${new Date().toISOString()}
+      ${payload.data.product_id}, ${status},
+      ${payload.data.payment_frequency_interval.toLowerCase()}, ${payload.data.recurring_pre_tax_amount},
+      ${payload.data.currency}, ${payload.data.created_at}, ${payload.data.next_billing_date},
+      ${payload.data.cancelled_at ?? null}, ${new Date().toISOString()}
     )
     ON CONFLICT (dodo_subscription_id) 
     DO UPDATE SET 
@@ -80,6 +81,7 @@ async function handleSubscriptionEvent(sql: NeonQueryFunction<false, false>, pay
       billing_interval = EXCLUDED.billing_interval,
       amount = EXCLUDED.amount,
       currency = EXCLUDED.currency,
+      created_at = EXCLUDED.created_at,
       next_billing_date = EXCLUDED.next_billing_date,
       cancelled_at = EXCLUDED.cancelled_at,
       updated_at = EXCLUDED.updated_at
@@ -115,7 +117,6 @@ export default {
         );
       }
 
-      // Verify webhook signature (required for security)
       if (!env.DODO_PAYMENTS_WEBHOOK_KEY) {
         console.error('❌ DODO_PAYMENTS_WEBHOOK_KEY is not configured');
         return new Response(
@@ -132,6 +133,7 @@ export default {
         );
       }
 
+      // Verify webhook signature (required for security)
       const webhookHeaders = {
         'webhook-id': request.headers.get('webhook-id') || '',
         'webhook-signature': request.headers.get('webhook-signature') || '',
@@ -143,7 +145,7 @@ export default {
           bearerToken: env.DODO_PAYMENTS_API_KEY,
           webhookKey: env.DODO_PAYMENTS_WEBHOOK_KEY,
         });
-        const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, {headers: webhookHeaders});
+        const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, { headers: webhookHeaders });
         console.log('Unwrapped webhook:', unwrappedWebhook);
         console.log('✅ Webhook signature verified');
       } catch (error) {

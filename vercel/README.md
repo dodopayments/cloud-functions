@@ -9,6 +9,8 @@ Deploy DodoPayments webhooks to Vercel's serverless platform.
 - 📊 **Event logging** - Complete audit trail in database
 - ⚠️ **Error handling** - Logged failures with retry support
 
+> **Note:** This implementation demonstrates handling three core subscription events (`subscription.active`, `subscription.cancelled`, `subscription.renewed`) with minimal fields. You can easily extend it to support additional event types and fields based on your requirements.
+
 ## Prerequisites
 
 ### 1. Install Vercel CLI (one-time)
@@ -27,10 +29,10 @@ This will prompt you to authenticate via email or GitHub.
 
 ### 3. Database Setup
 
-You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for serverless PostgreSQL.
+You'll need a PostgreSQL database. We recommend [Neon](https://neon.com) for serverless PostgreSQL.
 
 **Create the tables:**
-1. Sign up for [Neon](https://neon.tech)
+1. Sign up for [Neon](https://neon.com)
 2. Create a new project
 3. Open the SQL Editor
 4. Copy and paste the contents of [`schema.sql`](../schema.sql)
@@ -48,20 +50,44 @@ You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for se
 npm install
 ```
 
-### 2. Set Environment Variables
+### 2. Set Initial Environment Variables
 
 Via Vercel CLI:
 ```bash
 vercel env add DATABASE_URL
 vercel env add DODO_PAYMENTS_API_KEY
-vercel env add DODO_PAYMENTS_WEBHOOK_KEY
 ```
 
-Or via [Vercel Dashboard](https://vercel.com/dashboard) → Project Settings → Environment Variables
+> **Note:** We'll set `DODO_PAYMENTS_WEBHOOK_KEY` after deployment once you have your webhook URL.
 
 ### 3. Deploy
 
 ```bash
+npm run deploy
+```
+
+### 4. Get Your Webhook URL
+
+Your webhook URL is:
+```
+https://[your-project].vercel.app/api/webhook
+```
+
+### 5. Register Webhook in DodoPayments Dashboard
+
+1. Go to [DodoPayments Dashboard](https://app.dodopayments.com) → Developer → Webhooks
+2. Create a new webhook endpoint
+3. Configure your webhook URL as the endpoint
+4. Enable these subscription events:
+   - `subscription.active`
+   - `subscription.cancelled`
+   - `subscription.renewed`
+5. Copy the **Webhook Signing Key** provided
+
+### 6. Set Webhook Key & Redeploy
+
+```bash
+vercel env add DODO_PAYMENTS_WEBHOOK_KEY
 npm run deploy
 ```
 
@@ -81,9 +107,9 @@ Your webhook will be available at `http://localhost:3000/api/webhook`
 | `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
-## Deployment URL
+## Webhook URL
 
-After deployment, your webhook will be at:
+After deployment, your webhook URL will be at:
 ```
 https://[your-project].vercel.app/api/webhook
 ```
