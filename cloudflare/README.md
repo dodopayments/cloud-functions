@@ -9,6 +9,8 @@ Deploy DodoPayments webhooks to Cloudflare's global edge network with zero cold 
 - 📊 **Event logging** - Complete audit trail in database
 - ⚠️ **Error handling** - Logged failures with retry support
 
+> **Note:** This implementation demonstrates handling three core subscription events (`subscription.active`, `subscription.cancelled`, `subscription.renewed`) with minimal fields. You can easily extend it to support additional event types and fields based on your requirements.
+
 ## Prerequisites
 
 ### 1. Install Wrangler CLI (one-time)
@@ -27,10 +29,10 @@ This will open your browser to authenticate with your Cloudflare account.
 
 ### 3. Database Setup
 
-You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for serverless PostgreSQL.
+You'll need a PostgreSQL database. We recommend [Neon](https://neon.com) for serverless PostgreSQL.
 
 **Create the tables:**
-1. Sign up for [Neon](https://neon.tech)
+1. Sign up for [Neon](https://neon.com)
 2. Create a new project
 3. Open the SQL Editor
 4. Copy and paste the contents of [`schema.sql`](../schema.sql)
@@ -48,7 +50,7 @@ You'll need a PostgreSQL database. We recommend [Neon](https://neon.tech) for se
 npm install
 ```
 
-### 2. Configure Secrets
+### 2. Configure Initial Secrets
 
 ```bash
 # Set your Neon database URL
@@ -56,10 +58,9 @@ wrangler secret put DATABASE_URL
 
 # Set your API key
 wrangler secret put DODO_PAYMENTS_API_KEY
-
-# Set your webhook signing key
-wrangler secret put DODO_PAYMENTS_WEBHOOK_KEY
 ```
+
+> **Note:** We'll set `DODO_PAYMENTS_WEBHOOK_KEY` after deployment once you have your webhook URL.
 
 ### 3. Update wrangler.toml
 
@@ -72,6 +73,31 @@ name = "my-dodo-webhook"
 ### 4. Deploy
 
 ```bash
+npm run deploy
+```
+
+### 5. Get Your Webhook URL
+
+Your webhook URL is:
+```
+https://[worker-name].[your-subdomain].workers.dev
+```
+
+### 6. Register Webhook in DodoPayments Dashboard
+
+1. Go to [DodoPayments Dashboard](https://app.dodopayments.com) → Developer → Webhooks
+2. Create a new webhook endpoint
+3. Configure your webhook URL as the endpoint
+4. Enable these subscription events:
+   - `subscription.active`
+   - `subscription.cancelled`
+   - `subscription.renewed`
+5. Copy the **Signing Secret**
+
+### 7. Set Webhook Key & Redeploy
+
+```bash
+wrangler secret put DODO_PAYMENTS_WEBHOOK_KEY
 npm run deploy
 ```
 
@@ -91,9 +117,9 @@ Your webhook will be available at `http://localhost:8787`
 | `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
-## Deployment URL
+## Webhook URL
 
-After deployment, your webhook will be at:
+After deployment, your webhook URL will be at:
 ```
 https://[worker-name].[your-subdomain].workers.dev
 ```

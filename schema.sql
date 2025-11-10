@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS customers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT NOT NULL,
-  name TEXT,
+  name TEXT NOT NULL,
   dodo_customer_id TEXT UNIQUE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -20,13 +20,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   dodo_subscription_id TEXT UNIQUE NOT NULL,
   product_id TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'cancelled', 'expired', 'paused')),
-  billing_interval TEXT CHECK (billing_interval IN ('day', 'week', 'month', 'year')),
-  amount NUMERIC(10, 2),
-  currency TEXT DEFAULT 'USD',
-  next_billing_date TIMESTAMP WITH TIME ZONE,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'active', 'on_hold', 'cancelled', 'failed', 'expired')),
+  billing_interval TEXT NOT NULL CHECK (billing_interval IN ('day', 'week', 'month', 'year')),
+  amount INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  next_billing_date TIMESTAMP WITH TIME ZONE NOT NULL,
   cancelled_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -81,5 +81,7 @@ COMMENT ON TABLE webhook_events IS 'Logs all incoming webhook events for audit a
 
 COMMENT ON COLUMN customers.dodo_customer_id IS 'Unique customer ID from DodoPayments';
 COMMENT ON COLUMN subscriptions.dodo_subscription_id IS 'Unique subscription ID from DodoPayments';
+COMMENT ON COLUMN subscriptions.amount IS 'Amount in smallest currency unit (e.g., cents)';
+COMMENT ON COLUMN subscriptions.currency IS 'Currency used for the subscription payments (e.g., USD, EUR, INR)';
 COMMENT ON COLUMN webhook_events.attempts IS 'Number of processing attempts for failed webhooks';
 COMMENT ON COLUMN webhook_events.data IS 'Full webhook payload as JSON';

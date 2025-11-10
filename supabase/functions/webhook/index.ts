@@ -13,20 +13,21 @@ interface WebhookPayload {
   type: string;
   timestamp: string;
   data: {
-    payload_type: "Subscription" | "Refund" | "Dispute" | "LicenseKey";
-    subscription_id?: string;
+    payload_type: "Payment" | "Subscription" | "Refund" | "Dispute" | "LicenseKey";
+    subscription_id: string;
     customer: {
       customer_id: string;
       email: string;
       name: string;
     };
-    product_id?: string;
-    status?: string;
-    recurring_pre_tax_amount?: number;
-    payment_frequency_interval?: string;
-    next_billing_date?: string;
-    cancelled_at?: string;
-    currency?: string;
+    product_id: string;
+    status: string;
+    recurring_pre_tax_amount: number;
+    payment_frequency_interval: string;
+    created_at: string;
+    next_billing_date: string;
+    cancelled_at?: string | null;
+    currency: string;
   };
 }
 
@@ -46,7 +47,7 @@ async function handleSubscriptionEvent(supabase: SupabaseClient, payload: Webhoo
       .from('customers')
       .upsert({
         email: customer.email,
-        name: customer.name || customer.email,
+        name: customer.name,
         dodo_customer_id: customer.customer_id
       }, {
         onConflict: 'dodo_customer_id',
@@ -69,13 +70,14 @@ async function handleSubscriptionEvent(supabase: SupabaseClient, payload: Webhoo
       .upsert({
         customer_id: customerId,
         dodo_subscription_id: payload.data.subscription_id,
-        product_id: payload.data.product_id || 'unknown',
+        product_id: payload.data.product_id,
         status,
-        billing_interval: payload.data.payment_frequency_interval?.toLowerCase() || 'month',
-        amount: payload.data.recurring_pre_tax_amount || 0,
-        currency: payload.data.currency || 'USD',
-        next_billing_date: payload.data.next_billing_date || null,
-        cancelled_at: payload.data.cancelled_at || null,
+        billing_interval: payload.data.payment_frequency_interval.toLowerCase(),
+        amount: payload.data.recurring_pre_tax_amount,
+        currency: payload.data.currency,
+        created_at: payload.data.created_at,
+        next_billing_date: payload.data.next_billing_date,
+        cancelled_at: payload.data.cancelled_at ?? null,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'dodo_subscription_id',
@@ -118,7 +120,6 @@ serve(async (req: Request) => {
     const rawBody = await req.text();
     console.log('📨 Webhook received');
 
-    // Verify webhook signature (required for security)
     const apiKey = Deno.env.get('DODO_PAYMENTS_API_KEY');
     const webhookKey = Deno.env.get('DODO_PAYMENTS_WEBHOOK_KEY');
 
@@ -138,6 +139,7 @@ serve(async (req: Request) => {
       );
     }
 
+    // Verify webhook signature (required for security)
     const webhookHeaders = {
       'webhook-id': req.headers.get('webhook-id') || '',
       'webhook-signature': req.headers.get('webhook-signature') || '',
@@ -149,7 +151,7 @@ serve(async (req: Request) => {
         bearerToken: apiKey,
         webhookKey: webhookKey,
       });
-      const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, {headers: webhookHeaders});
+      const unwrappedWebhook = dodoPaymentsClient.webhooks.unwrap(rawBody, { headers: webhookHeaders });
       console.log('Unwrapped webhook:', unwrappedWebhook);
       console.log('✅ Webhook signature verified');
     } catch (error) {

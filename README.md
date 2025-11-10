@@ -20,7 +20,7 @@ Each guide includes step-by-step setup with CLI installation, authentication, an
 
 Each implementation includes a webhook handler connected to a PostgreSQL database:
 
-- **Cloudflare, Vercel, Netlify** use **[Neon](https://neon.tech)** - Serverless PostgreSQL with connection pooling
+- **Cloudflare, Vercel, Netlify** use **[Neon](https://neon.com)** - Serverless PostgreSQL with connection pooling
 - **Supabase** uses **Supabase PostgreSQL** - Built-in database with your Supabase project
 
 Both are optimized for serverless. You can also use any PostgreSQL database by providing a connection string (AWS RDS, self-hosted, etc.)
@@ -62,7 +62,7 @@ Each guide includes:
 All implementations require PostgreSQL tables. Create them using your database provider's SQL editor:
 
 **For Neon (Cloudflare, Vercel, Netlify):**
-1. Create a [Neon account](https://neon.tech)
+1. Create a [Neon account](https://neon.com)
 2. Create a new project
 3. Open the SQL Editor in Neon dashboard
 4. Copy and paste the entire contents of [`schema.sql`](./schema.sql)
@@ -90,6 +90,8 @@ All implementations process these Dodo Payments events:
 | `subscription.active` | New subscription activated |
 | `subscription.cancelled` | Subscription cancelled |
 | `subscription.renewed` | Subscription renewed (updates billing date) |
+
+> **Note:** These implementations demonstrate handling three core subscription events (`subscription.active`, `subscription.cancelled`, `subscription.renewed`) with minimal fields. You can easily extend them to support additional event types and fields based on your requirements.
 
 ## 🔒 Security
 
@@ -146,7 +148,7 @@ Contributions welcome! Please feel free to submit a Pull Request.
 
 - [DodoPayments](https://dodopayments.com) - Payment platform
 - [DodoPayments Docs](https://docs.dodopayments.com) - Official documentation
-- [Neon Database](https://neon.tech) - Serverless PostgreSQL
+- [Neon Database](https://neon.com) - Serverless PostgreSQL
 - [Cloudflare Workers](https://workers.cloudflare.com)
 - [Vercel Functions](https://vercel.com/docs/functions)
 - [Netlify Functions](https://docs.netlify.com/functions)

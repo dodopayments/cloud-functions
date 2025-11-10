@@ -9,6 +9,8 @@ Deploy DodoPayments webhooks to Supabase Edge Functions with Deno runtime.
 - 📊 **Event logging** - Complete audit trail in database
 - ⚠️ **Error handling** - Logged failures with retry support
 
+> **Note:** This implementation demonstrates handling three core subscription events (`subscription.active`, `subscription.cancelled`, `subscription.renewed`) with minimal fields. You can easily extend it to support additional event types and fields based on your requirements.
+
 ## Prerequisites
 
 ### 1. Supabase CLI via npx
@@ -47,22 +49,44 @@ Your webhook handler will then be ready to receive events!
 
 ## Quick Start
 
-### 1. Set Environment Variables
-
-Supabase automatically provides `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` at runtime.
-
-Set your API key and webhook key:
+### 1. Set Initial Secrets
 
 ```bash
 npx supabase secrets set DODO_PAYMENTS_API_KEY=your-api-key
-npx supabase secrets set DODO_PAYMENTS_WEBHOOK_KEY=your-webhook-key
 ```
+
+> **Note:** We'll set `DODO_PAYMENTS_WEBHOOK_KEY` after deployment once you have your webhook URL.
 
 ### 2. Deploy
 
 The function is already set up in `supabase/functions/webhook/index.ts` - just deploy it:
 
 ```bash
+npm run deploy
+```
+
+### 3. Get Your Webhook URL
+
+Your webhook URL is:
+```
+https://[project-ref].supabase.co/functions/v1/webhook
+```
+
+### 4. Register Webhook in DodoPayments Dashboard
+
+1. Go to [DodoPayments Dashboard](https://app.dodopayments.com) → Developer → Webhooks
+2. Create a new webhook endpoint
+3. Configure your webhook URL as the endpoint
+4. Enable these subscription events:
+   - `subscription.active`
+   - `subscription.cancelled`
+   - `subscription.renewed`
+5. Copy the **Signing Secret**
+
+### 5. Set Webhook Key & Redeploy
+
+```bash
+npx supabase secrets set DODO_PAYMENTS_WEBHOOK_KEY=your-webhook-signing-key
 npm run deploy
 ```
 
@@ -75,11 +99,11 @@ npm run deploy
 | `DODO_PAYMENTS_API_KEY` | Yes | API key for DodoPayments client |
 | `DODO_PAYMENTS_WEBHOOK_KEY` | Yes | Webhook signing key for verification |
 
-## Deployment URL
+## Webhook URL
 
-After deployment, your webhook will be at:
+After deployment, your webhook URL will be at:
 ```
-https://[project-ref].supabase.co/functions/v1/webhook
+https://[project-id].supabase.co/functions/v1/webhook
 ```
 
 Configure this URL in your DodoPayments dashboard.
