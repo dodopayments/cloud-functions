@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
-import { DodoPayments } from 'https://esm.sh/dodopayments@2.4.1';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.89.0';
+import { DodoPayments } from 'https://esm.sh/dodopayments@2.11.0';
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
