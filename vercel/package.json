@@ -9,10 +9,10 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "dodopayments": "^2.4.1"
+    "dodopayments": "^2.11.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vercel": "^48.4.1"
+    "vercel": "^50.1.3"
   }
 }
