@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@netlify/functions": "^5.1.1",
-    "netlify-cli": "^23.13.0",
+    "netlify-cli": "^27.17.0",
     "typescript": "^5.9.3"
   }
 }
